@@ -1,0 +1,1764 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Классная доска — темы контрольных</title>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+<style>
+  :root{
+    --board:#1f3d2f;
+    --chalk:#f4f1e8;
+    --chalk-dim:#b9c4b3;
+    --accent:#ff8a5c;
+    --card:#274a37;
+    --card-border:#3a624a;
+  }
+  body.theme-blackred{
+    --board:#1a1010;
+    --chalk:#f5e8e8;
+    --chalk-dim:#c9a3a3;
+    --accent:#e63946;
+    --card:#2b1414;
+    --card-border:#5c2323;
+  }
+  body.theme-redgreen{
+    --board:#1e2e1a;
+    --chalk:#f0f5ec;
+    --chalk-dim:#b9c9ae;
+    --accent:#e53935;
+    --card:#26401f;
+    --card-border:#43642f;
+  }
+  body.theme-yellowblue{
+    --board:#12233d;
+    --chalk:#f5f2e0;
+    --chalk-dim:#a9b8d0;
+    --accent:#ffc93c;
+    --card:#193050;
+    --card-border:#2c4f7c;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background: var(--board);
+    background-image:
+      radial-gradient(circle at 20% 20%, rgba(255,255,255,0.04) 0, transparent 40%),
+      radial-gradient(circle at 85% 75%, rgba(255,255,255,0.04) 0, transparent 40%);
+    color: var(--chalk);
+    font-family: 'Trebuchet MS', 'Segoe UI', sans-serif;
+    min-height:100vh;
+    padding: 40px 20px 140px;
+  }
+  header{ text-align:center; margin-bottom: 26px; animation: dropIn .6s ease; }
+  @keyframes dropIn{ from{transform:translateY(-24px); opacity:0;} to{transform:translateY(0); opacity:1;} }
+  h1{ font-family:'Comic Sans MS','Trebuchet MS',cursive,sans-serif; font-size:2.2rem; text-shadow:2px 2px 0 rgba(0,0,0,.25); }
+  h1 span{ color: var(--accent); }
+  p.subtitle{ color: var(--chalk-dim); margin-top:6px; font-size:.95rem; }
+  p.counter{ color: var(--accent); font-size:.85rem; margin-top:10px; font-weight:bold; }
+  p.admin-greeting{ color: var(--chalk-dim); font-size:.85rem; margin-top:8px; font-style:italic; }
+  .share-btn{
+    margin-top:14px; background:var(--card); color:var(--chalk); border:1px solid var(--card-border);
+    padding:9px 18px; border-radius:20px; cursor:pointer; font-size:.85rem; transition: transform .15s ease, background .15s ease;
+  }
+  .share-btn:hover{ background:var(--accent); color:#2a1a10; transform: scale(1.04); }
+  .admin-btn{ margin-left:8px; }
+  .storage-banner{
+    max-width:480px; margin:12px auto 0; padding:10px 14px; border-radius:12px;
+    background:#3a2a1a; border:1px solid #c0453a; color:#e08c82; font-size:.8rem; text-align:center;
+  }
+  .storage-banner.ok{ background:#1a3a2a; border-color:#3a624a; color:var(--chalk-dim); }
+
+  .searchbar{
+    max-width:480px; margin:24px auto; display:flex; gap:8px;
+    background: var(--card); border-radius:30px; padding:6px 6px 6px 18px;
+    box-shadow:0 6px 14px rgba(0,0,0,.25); animation: dropIn .8s ease;
+  }
+  .searchbar input{ flex:1; background:transparent; border:none; outline:none; color:var(--chalk); font-size:1rem; padding:10px 0; }
+  .searchbar input::placeholder{ color:var(--chalk-dim); }
+
+  .filters{ display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-bottom:28px; }
+  .filters select{
+    background:var(--card); color:var(--chalk); border:1px solid var(--card-border);
+    border-radius:20px; padding:8px 14px; font-size:.85rem; outline:none;
+  }
+
+  .grid{
+    max-width:1000px; margin:0 auto; display:grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px,1fr)); gap:20px;
+  }
+  .card{
+    background:var(--card); border:1px solid var(--card-border); border-radius:12px;
+    padding:16px; box-shadow:0 8px 18px rgba(0,0,0,.28);
+    animation: cardIn .35s ease; cursor:pointer; transition: transform .15s ease, border-color .15s ease;
+  }
+  .card:hover{ transform: translateY(-3px); border-color: var(--accent); }
+  @keyframes cardIn{ from{opacity:0; transform:translateY(10px) scale(.97);} to{opacity:1; transform:translateY(0) scale(1);} }
+  .click-hint{ color: var(--accent) !important; font-size:.72rem !important; margin-top:8px; font-weight:bold; }
+  .tag{ display:inline-block; background:var(--accent); color:#2a1a10; font-weight:bold; font-size:.72rem; padding:3px 10px; border-radius:12px; margin-bottom:8px; }
+  .card h3{ font-size:1.05rem; margin-bottom:4px; }
+  .card p{ color:var(--chalk-dim); font-size:.85rem; }
+  .empty{ text-align:center; color:var(--chalk-dim); margin-top:60px; grid-column:1/-1; }
+
+  .card-actions{ display:flex; gap:8px; margin-top:10px; }
+  .like-btn, .delete-btn{
+    border:1px solid var(--card-border); background:transparent; color:var(--chalk);
+    border-radius:16px; padding:5px 12px; font-size:.78rem; cursor:pointer;
+    transition: transform .15s ease, background .15s ease;
+  }
+  .like-btn:hover{ background:var(--accent); color:#2a1a10; border-color:var(--accent); }
+  .like-btn.liked{ background:#c0453a; border-color:#c0453a; color:#fff; animation: heartPop .35s ease; }
+  @keyframes heartPop{ 0%{transform:scale(1);} 40%{transform:scale(1.25);} 100%{transform:scale(1);} }
+  .delete-btn{ border-color:#c0453a; color:#e08c82; }
+  .delete-btn:hover{ background:#c0453a; color:white; }
+  .report-btn{
+    border:1px solid var(--card-border); background:transparent; color:var(--chalk-dim);
+    border-radius:16px; padding:5px 12px; font-size:.78rem; cursor:pointer;
+    transition: transform .15s ease, background .15s ease;
+  }
+  .report-btn:hover{ background:#c0453a; color:white; border-color:#c0453a; }
+
+  .fab{
+    position:fixed; left:24px; bottom:24px; width:58px; height:58px; border-radius:50%;
+    background:var(--accent); color:#2a1a10; font-size:1.8rem; border:none; cursor:pointer;
+    box-shadow:0 8px 20px rgba(0,0,0,.4); transition: transform .2s ease;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .fab:hover{ transform: scale(1.08) rotate(90deg); }
+
+  .overlay{
+    position:fixed; inset:0; background:rgba(0,0,0,.55); display:none;
+    align-items:center; justify-content:center; padding:20px; z-index:10;
+  }
+  .overlay.show{ display:flex; }
+  .modal{
+    background:var(--card); border-radius:16px; padding:24px; width:100%; max-width:380px;
+    animation: modalIn .25s ease; box-shadow:0 20px 40px rgba(0,0,0,.4);
+  }
+  @keyframes modalIn{ from{opacity:0; transform:translateY(20px) scale(.95);} to{opacity:1; transform:translateY(0) scale(1);} }
+  .modal h2{ margin-bottom:16px; font-size:1.2rem; }
+  .modal label{ display:block; font-size:.8rem; color:var(--chalk-dim); margin:10px 0 4px; }
+  .modal input, .modal select{
+    width:100%; padding:10px; border-radius:8px; border:1px solid var(--card-border);
+    background:#1f3d2f; color:var(--chalk); outline:none; font-size:.9rem;
+  }
+  .modal-buttons{ display:flex; gap:10px; margin-top:18px; }
+  .modal-buttons button{ flex:1; padding:10px; border:none; border-radius:8px; cursor:pointer; font-weight:bold; }
+  .btn-cancel{ background:transparent; border:1px solid var(--card-border) !important; color:var(--chalk); }
+  .btn-publish{ background:var(--accent); color:#2a1a10; }
+  .status{ text-align:center; font-size:.8rem; color:var(--chalk-dim); margin-top:10px; min-height:16px; }
+  .photo-hint{ font-size:.75rem; color:var(--chalk-dim); margin-top:6px; }
+  .pending-modal{ max-width:420px; max-height:80vh; display:flex; flex-direction:column; }
+  .pending-list{ overflow-y:auto; max-height:400px; display:flex; flex-direction:column; gap:10px; margin:12px 0; }
+  .pending-item{ background:#1f3d2f; border:1px solid var(--card-border); border-radius:10px; padding:12px; }
+  .pending-item img{ width:100%; max-height:140px; object-fit:cover; border-radius:6px; margin-bottom:8px; }
+  .pending-item h4{ font-size:.95rem; margin-bottom:4px; }
+  .pending-item p{ font-size:.8rem; color:var(--chalk-dim); margin-bottom:8px; }
+  .pending-actions{ display:flex; gap:8px; }
+  .pending-actions button{ flex:1; padding:7px; border-radius:8px; border:none; cursor:pointer; font-size:.8rem; font-weight:bold; }
+  .approve-btn{ background:#3a624a; color:white; }
+  .reject-btn{ background:#c0453a; color:white; }
+
+  .tutor-modal{ max-width:420px; display:flex; flex-direction:column; max-height:80vh; }
+  .tutor-chat{
+    flex:1; overflow-y:auto; margin:12px 0; display:flex; flex-direction:column; gap:8px;
+    max-height:340px; min-height:120px;
+  }
+  .tutor-msg{
+    padding:9px 13px; border-radius:12px; font-size:.88rem; max-width:85%; line-height:1.4;
+    white-space: pre-wrap; word-wrap: break-word; overflow-wrap: anywhere;
+  }
+  .tutor-msg.user{ background:var(--accent); color:#2a1a10; align-self:flex-end; }
+  .tutor-msg.ai{ background:#1f3d2f; color:var(--chalk); align-self:flex-start; }
+  .tutor-input-row{ display:flex; gap:8px; }
+  .tutor-input-row input{
+    flex:1; padding:10px; border-radius:8px; border:1px solid var(--card-border);
+    background:#1f3d2f; color:var(--chalk); outline:none; font-size:.9rem;
+  }
+  .tutor-input-row button{
+    background:var(--accent); color:#2a1a10; border:none; border-radius:8px; padding:0 16px; cursor:pointer; font-weight:bold;
+  }
+  .tutor-close{ margin-top:10px; }
+
+  @media (max-width: 480px){
+    body{ padding: 24px 14px 110px; }
+    h1{ font-size:1.7rem; }
+    .fab{ width:52px; height:52px; font-size:1.5rem; left:16px; bottom:16px; }
+    .modal{ padding:18px; }
+    .grid{ gap:14px; }
+  }
+  @media (min-width: 481px) and (max-width: 900px){
+    .grid{ grid-template-columns: repeat(auto-fill, minmax(200px,1fr)); }
+  }
+  @media (min-width: 1200px){
+    body{ padding-left: 60px; padding-right: 60px; }
+    .grid{ max-width: 1100px; }
+  }
+
+  .friends-btn{ margin-left:8px; }
+  .social-modal{ max-width:420px; max-height:85vh; display:flex; flex-direction:column; }
+  .social-tabs{ display:flex; gap:6px; margin-bottom:12px; }
+  .social-tabs button{
+    flex:1; padding:8px; border-radius:10px; border:1px solid var(--card-border);
+    background:transparent; color:var(--chalk); cursor:pointer; font-size:.85rem;
+  }
+  .social-tabs button.active{ background:var(--accent); color:#2a1a10; border-color:var(--accent); font-weight:bold; }
+  .friend-list{ overflow-y:auto; max-height:280px; display:flex; flex-direction:column; gap:8px; }
+  .friend-item{
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    background:#1f3d2f; border:1px solid var(--card-border); border-radius:10px; padding:10px 12px;
+  }
+  .friend-item span{ font-size:.9rem; }
+  .friend-item button{
+    border:none; border-radius:8px; padding:6px 10px; cursor:pointer; font-size:.78rem; font-weight:bold;
+    background:var(--accent); color:#2a1a10;
+  }
+  .my-code{
+    background:#1f3d2f; border:1px dashed var(--card-border); border-radius:10px;
+    padding:10px; margin-bottom:12px; font-size:.85rem; color:var(--chalk-dim); text-align:center;
+  }
+  .my-code b{ color:var(--accent); font-size:1.05rem; letter-spacing:1px; }
+  .dm-chat{
+    flex:1; overflow-y:auto; min-height:180px; max-height:320px;
+    display:flex; flex-direction:column; gap:8px; margin:10px 0;
+  }
+  .dm-msg{
+    padding:8px 12px; border-radius:12px; font-size:.88rem; max-width:80%;
+    white-space:pre-wrap; word-wrap:break-word;
+  }
+  .dm-msg.me{ background:var(--accent); color:#2a1a10; align-self:flex-end; }
+  .dm-msg.them{ background:#1f3d2f; color:var(--chalk); align-self:flex-start; }
+  .dm-input-row{ display:flex; gap:8px; }
+  .dm-input-row input{
+    flex:1; padding:10px; border-radius:8px; border:1px solid var(--card-border);
+    background:#1f3d2f; color:var(--chalk); outline:none;
+  }
+  .dm-input-row button{
+    background:var(--accent); color:#2a1a10; border:none; border-radius:8px;
+    padding:0 14px; cursor:pointer; font-weight:bold;
+  }
+
+
+  .settings-gear{
+    position:fixed; top:14px; right:14px; z-index:20;
+    width:44px; height:44px; border-radius:50%;
+    background:var(--card); border:1px solid var(--card-border);
+    color:var(--chalk); font-size:1.25rem; cursor:pointer;
+    box-shadow:0 4px 12px rgba(0,0,0,.3);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .settings-gear:hover{ border-color:var(--accent); transform:rotate(30deg); transition:transform .2s ease; }
+
+</style>
+</head>
+<body>
+
+
+<button type="button" class="settings-gear" onclick="openSettings()" title="Settings">⚙️</button>
+
+<div class="overlay" id="settingsOverlay">
+  <div class="modal">
+    <h2 id="settingsTitle">Настройки</h2>
+    <label id="labelLanguage">Язык / Language</label>
+    <select id="langSelect" onchange="setLanguage(this.value)">
+      <option value="ru">Русский</option>
+      <option value="ro">Română (Moldova)</option>
+      <option value="en">English</option>
+    </select>
+    <label id="labelTheme" style="margin-top:14px;">Цветовая тема</label>
+    <select id="themeSelect" onchange="setTheme(this.value)">
+      <option value="normal" id="themeOptNormal">Обычная</option>
+      <option value="blackred" id="themeOptBlackRed">Чёрно-красная</option>
+      <option value="redgreen" id="themeOptRedGreen">Красно-зелёная</option>
+      <option value="yellowblue" id="themeOptYellowBlue">Жёлто-синяя</option>
+    </select>
+    <p class="photo-hint" id="settingsHint">School.Aii будет отвечать на выбранном языке.</p>
+    <button class="btn-cancel tutor-close" style="margin-top:14px;width:100%;" onclick="closeSettings()" id="settingsClose">Закрыть</button>
+  </div>
+</div>
+
+<header>
+  <h1>Классная <span>доска</span></h1>
+  <p class="subtitle">Темы прошедших контрольных — для подготовки к похожим темам в будущем</p>
+  <p class="credit" style="color:var(--chalk-dim);font-size:.75rem;margin-top:6px;">от <span style="color:var(--accent);font-weight:bold;">Traian</span></p>
+  <p class="admin-greeting" id="adminGreeting"></p>
+  <p class="counter" id="counter"></p>
+  <div class="storage-banner" id="storageBanner" style="display:none;"></div>
+  <button class="share-btn" onclick="shareSite()">🔗 Поделиться сайтом</button>
+  <button class="share-btn friends-btn" onclick="openFriendsPanel()">👥 Друзья</button>
+  <button class="share-btn admin-btn" onclick="openAiSettings()">🔑 ИИ-ключ</button>
+  <button class="share-btn admin-btn" onclick="openAdminLogin()">🔒 Админ</button>
+  <button class="share-btn admin-btn" id="pendingBtn" onclick="openPendingPanel()" style="display:none;">📋 На проверке (<span id="pendingCount">0</span>)</button>
+</header>
+
+<div class="searchbar">
+  <input id="searchInput" placeholder="Поиск по теме, предмету, классу...">
+</div>
+
+<div class="filters">
+  <select id="filterClass"><option value="">Все классы</option></select>
+  <select id="filterSubject"><option value="">Все предметы</option></select>
+</div>
+
+<div class="grid" id="grid">
+  <div class="empty">Загрузка...</div>
+</div>
+
+<div class="overlay" id="tutorOverlay">
+  <div class="modal tutor-modal">
+    <h2 id="tutorTitle">Помощник по теме</h2>
+    <div class="tutor-chat" id="tutorChat"></div>
+    <div class="tutor-input-row">
+      <input id="tutorInput" placeholder="Спроси что-нибудь по теме..." onkeydown="if(event.key==='Enter') sendTutorMessage()">
+      <button onclick="sendTutorMessage()">➤</button>
+    </div>
+    <button class="btn-cancel tutor-close" onclick="closeTutor()">Закрыть</button>
+  </div>
+</div>
+
+
+<div class="overlay" id="aiKeyOverlay">
+  <div class="modal">
+    <h2>Ключ School.Aii (OpenAI)</h2>
+    <p class="photo-hint">Можно вставить свой ключ с platform.openai.com/api-keys. Он сохранится только в этом браузере.</p>
+    <label>Gemini API key</label>
+    <input id="aiKeyInput" placeholder="AIza... или AQ...." autocomplete="off">
+    <div class="modal-buttons">
+      <button class="btn-cancel" onclick="closeAiSettings()">Закрыть</button>
+      <button class="btn-publish" onclick="saveAiKey()">Сохранить</button>
+    </div>
+    <button class="btn-cancel tutor-close" style="margin-top:8px;width:100%;" onclick="clearAiKey()">Сбросить свой ключ</button>
+    <div class="status" id="aiKeyStatus"></div>
+  </div>
+</div>
+
+<div class="overlay" id="adminOverlay">
+  <div class="modal">
+    <h2 id="adminLoginTitle">Вход администратора</h2>
+    <label id="passwordLabel">Пароль</label>
+    <input type="password" id="adminPassword" placeholder="Введи пароль">
+    <div class="modal-buttons">
+      <button class="btn-cancel" id="adminCancelBtn" onclick="closeAdminLogin()">Отмена</button>
+      <button class="btn-publish" id="adminLoginBtn" onclick="checkAdminPassword()">Войти</button>
+    </div>
+    <div class="status" id="adminStatus"></div>
+  </div>
+</div>
+
+<div class="overlay" id="pendingOverlay">
+  <div class="modal pending-modal">
+    <h2 id="pendingTitle">Записи на проверке</h2>
+    <div id="pendingList" class="pending-list"></div>
+    <button class="btn-cancel tutor-close" id="pendingCloseBtn" onclick="closePendingPanel()">Закрыть</button>
+  </div>
+</div>
+
+
+<div class="overlay" id="friendsOverlay">
+  <div class="modal social-modal">
+    <h2>Друзья</h2>
+    <div class="my-code" id="myCodeBox">Загрузка...</div>
+    <div class="social-tabs">
+      <button type="button" class="active" id="tabFriends" onclick="showSocialTab('friends')">Список</button>
+      <button type="button" id="tabAdd" onclick="showSocialTab('add')">Добавить</button>
+      <button type="button" id="tabProfile" onclick="showSocialTab('profile')">Профиль</button>
+    </div>
+    <div id="socialFriends">
+      <div class="friend-list" id="friendList"></div>
+    </div>
+    <div id="socialAdd" style="display:none;">
+      <label>Код друга</label>
+      <input id="friendCodeInput" placeholder="например, AB12CD" style="text-transform:uppercase;">
+      <div class="modal-buttons">
+        <button class="btn-publish" onclick="addFriendByCode()">Добавить</button>
+      </div>
+      <div class="status" id="friendAddStatus"></div>
+    </div>
+    <div id="socialProfile" style="display:none;">
+      <label>Твой ник</label>
+      <input id="myNickInput" placeholder="как тебя зовут в классе">
+      <div class="modal-buttons">
+        <button class="btn-publish" onclick="saveMyNick()">Сохранить</button>
+      </div>
+      <div class="status" id="profileStatus"></div>
+    </div>
+    <button class="btn-cancel tutor-close" onclick="closeFriendsPanel()" style="margin-top:12px;">Закрыть</button>
+  </div>
+</div>
+
+<div class="overlay" id="dmOverlay">
+  <div class="modal social-modal">
+    <h2 id="dmTitle">Чат</h2>
+    <div class="dm-chat" id="dmChat"></div>
+    <div class="dm-input-row">
+      <input id="dmInput" placeholder="Сообщение..." onkeydown="if(event.key==='Enter') sendDm()">
+      <button type="button" onclick="sendDm()">➤</button>
+    </div>
+    <button class="btn-cancel tutor-close" onclick="closeDm()" style="margin-top:10px;">Назад</button>
+  </div>
+</div>
+
+<button class="fab" onclick="openModal()">+</button>
+
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <h2>Добавить запись</h2>
+    <label>Класс</label>
+    <select id="inputClass"><option value="">Выбери класс</option></select>
+    <label>Предмет</label>
+    <select id="inputSubject">
+      <option value="">Выбери предмет</option>
+      <option value="Математика">Математика</option>
+      <option value="Русский язык">Русский язык</option>
+      <option value="Литература">Литература</option>
+      <option value="История">История</option>
+      <option value="Обществознание">Обществознание</option>
+      <option value="География">География</option>
+      <option value="Биология">Биология</option>
+      <option value="Физика">Физика</option>
+      <option value="Химия">Химия</option>
+      <option value="Информатика">Информатика</option>
+      <option value="Английский язык">Английский язык</option>
+      <option value="Немецкий язык">Немецкий язык</option>
+      <option value="Французский язык">Французский язык</option>
+      <option value="ОБЖ">ОБЖ</option>
+      <option value="Физкультура">Физкультура</option>
+      <option value="Технология">Технология</option>
+      <option value="ИЗО">ИЗО</option>
+      <option value="Музыка">Музыка</option>
+      <option value="Окружающий мир">Окружающий мир</option>
+    </select>
+    <label>Тема контрольной</label>
+    <input id="inputTopic" placeholder="например, Пушкин">
+    <label>Фото своего конспекта (не самой контрольной)</label>
+    <input type="file" id="inputPhoto" accept="image/*">
+    <p class="photo-hint">Запись сначала попадёт админу на проверку и появится на сайте после одобрения.</p>
+    <div class="modal-buttons">
+      <button class="btn-cancel" onclick="closeModal()">Отмена</button>
+      <button class="btn-publish" onclick="publishEntry()">Отправить на проверку</button>
+    </div>
+    <div class="status" id="status"></div>
+  </div>
+</div>
+
+<script>
+
+// ==== ЯЗЫКИ ====
+const I18N = {
+  ru: {
+    title: 'Классная доска — темы контрольных',
+    h1_html: 'Классная <span>доска</span>',
+    subtitle: 'Темы прошедших контрольных — для подготовки к похожим темам в будущем',
+    share: '🔗 Поделиться сайтом',
+    friends: '👥 Друзья',
+    aiKey: '🔑 ИИ-ключ',
+    admin: '🔒 Админ',
+    pending: '📋 На проверке',
+    search: 'Поиск по теме, предмету, классу...',
+    allClasses: 'Все классы',
+    allSubjects: 'Все предметы',
+    empty: 'Пока пусто. Нажми "+", чтобы добавить первую запись.',
+    loading: 'Загрузка...',
+    addEntry: 'Добавить запись',
+    cls: 'Класс',
+    subject: 'Предмет',
+    topic: 'Тема контрольной',
+    topicPh: 'например, Пушкин',
+    photo: 'Фото своего конспекта (не самой контрольной)',
+    photoHint: 'Запись сначала попадёт админу на проверку и появится на сайте после одобрения.',
+    cancel: 'Отмена',
+    publish: 'Отправить на проверку',
+    close: 'Закрыть',
+    tutorPh: 'Спроси что-нибудь по теме...',
+    askAi: 'Нажми, чтобы спросить у School.Aii →',
+    openTopic: 'Нажми, чтобы открыть тему',
+    settings: 'Настройки',
+    lang: 'Язык сайта',
+    settingsHint: 'School.Aii будет отвечать на выбранном языке.',
+    cloudOk: '☁️ Облако подключено — записи видят все',
+    cloudOff: '📱 Пока только на этом устройстве. Настрой Firebase, чтобы видели все.',
+    friendsTitle: 'Друзья',
+    tabList: 'Список',
+    tabAdd: 'Добавить',
+    tabProfile: 'Профиль',
+    friendCode: 'Код друга',
+    addFriend: 'Добавить',
+    yourNick: 'Твой ник',
+    save: 'Сохранить',
+    msgPh: 'Сообщение...',
+    adminLogin: 'Вход администратора',
+    password: 'Пароль',
+    login: 'Войти',
+    aiKeyTitle: 'Ключ School.Aii (OpenAI)',
+    aiKeyHint: 'Можно вставить свой ключ с platform.openai.com/api-keys. Он сохранится только в этом браузере.',
+    langName: 'русский',
+    classWord: 'класс',
+    topicLabel: 'Тема',
+    entriesCount: '📌 Уже добавлено записей',
+    removeFriendConfirm: 'Удалить из друзей?',
+    greet1: 'Желаю вам здоровья от админа 💚',
+    greet2: 'Спасибо, что зашли на сайт — хорошего дня!',
+    greet3: 'Админ желает удачи на учёбе 🍀',
+    greet4: 'Заходите почаще — сайт растёт вместе с вами!',
+    greet5: 'Хорошего настроения от админа этого сайта 🙌',
+    greet6: 'Пусть подготовка идёт легко — админ верит в вас!',
+    tutorGreet: 'Привет! Я School.Aii — помогу разобраться с темой «{topic}» по предмету «{subject}». Можешь спросить объяснение, попросить похожий пример для тренировки или задать вопрос по теме.',
+    aiOff: 'сейчас выключен.',
+    aiTooFast: 'Слишком много сообщений подряд — подожди немного и попробуй снова.',
+    aiNoReply: 'Извини, не получилось ответить.',
+    alreadyAdmin: 'Ты уже вошёл как админ. Нажми «Удалить» на карточке.',
+    wrongPassword: 'Неверный пароль',
+    noPending: 'Нет записей на проверке.',
+    approve: '✓ Одобрить',
+    reject: '✕ Отклонить',
+    rejectConfirm: 'Отклонить эту запись? Она не появится на сайте.',
+    deleteConfirm: 'Удалить эту запись?',
+    reportConfirm: 'Пожаловаться на эту запись как на неприемлемую?',
+    spamLike: 'Похоже на спам — попробуй написать нормально',
+    tooManyPublish: 'Слишком много публикаций подряд — попробуй чуть позже.',
+    sendFailed: 'Не удалось отправить, попробуй ещё раз.',
+    deleteBtn: '🗑 Удалить',
+    theme: 'Цветовая тема',
+    themeNormal: 'Обычная',
+    themeBlackRed: 'Чёрно-красная',
+    themeRedGreen: 'Красно-зелёная',
+    themeYellowBlue: 'Жёлто-синяя',
+    passwordPh: 'Введи пароль',
+    pendingTitle: 'Записи на проверке'
+  },
+  ro: {
+    title: 'Tabla clasei — teme la teste',
+    h1_html: 'Tabla <span>clasei</span>',
+    subtitle: 'Temele testelor anterioare — pentru pregătire la teme similare',
+    share: '🔗 Distribuie site-ul',
+    friends: '👥 Prieteni',
+    aiKey: '🔑 Cheie AI',
+    admin: '🔒 Admin',
+    pending: '📋 În așteptare',
+    search: 'Caută după temă, materie, clasă...',
+    allClasses: 'Toate clasele',
+    allSubjects: 'Toate materiile',
+    empty: 'Gol deocamdată. Apasă „+” ca să adaugi prima înregistrare.',
+    loading: 'Se încarcă...',
+    addEntry: 'Adaugă înregistrare',
+    cls: 'Clasa',
+    subject: 'Materia',
+    topic: 'Tema testului',
+    topicPh: 'de ex. Pușkin',
+    photo: 'Foto conspect (nu testul în sine)',
+    photoHint: 'Înregistrarea merge mai întâi la admin și apare după aprobare.',
+    cancel: 'Anulează',
+    publish: 'Trimite la verificare',
+    close: 'Închide',
+    tutorPh: 'Întreabă ceva despre temă...',
+    askAi: 'Apasă ca să întrebi School.Aii →',
+    openTopic: 'Apasă ca să deschizi tema',
+    settings: 'Setări',
+    lang: 'Limba site-ului',
+    settingsHint: 'School.Aii va răspunde în limba aleasă.',
+    cloudOk: '☁️ Nor conectat — toți văd înregistrările',
+    cloudOff: '📱 Doar pe acest dispozitiv. Configurează Firebase ca să vadă toți.',
+    friendsTitle: 'Prieteni',
+    tabList: 'Listă',
+    tabAdd: 'Adaugă',
+    tabProfile: 'Profil',
+    friendCode: 'Codul prietenului',
+    addFriend: 'Adaugă',
+    yourNick: 'Porecla ta',
+    save: 'Salvează',
+    msgPh: 'Mesaj...',
+    adminLogin: 'Autentificare admin',
+    password: 'Parolă',
+    login: 'Intră',
+    aiKeyTitle: 'Cheie School.Aii (OpenAI)',
+    aiKeyHint: 'Poți pune cheia ta de pe platform.openai.com/api-keys. Se salvează doar în acest browser.',
+    langName: 'română',
+    classWord: 'clasa',
+    topicLabel: 'Tema',
+    entriesCount: '📌 Înregistrări adăugate',
+    removeFriendConfirm: 'Ștergi din prieteni?',
+    greet1: 'Vă doresc sănătate din partea adminului 💚',
+    greet2: 'Mulțumim că ai vizitat site-ul — o zi bună!',
+    greet3: 'Adminul îți urează succes la învățătură 🍀',
+    greet4: 'Revino des — site-ul crește împreună cu tine!',
+    greet5: 'O dispoziție bună din partea adminului acestui site 🙌',
+    greet6: 'Fie ca pregătirea să fie ușoară — adminul crede în tine!',
+    tutorGreet: 'Salut! Sunt School.Aii — te ajut cu tema «{topic}» la materia «{subject}». Poți cere o explicație, un exemplu asemănător pentru exersare sau orice întrebare despre temă.',
+    aiOff: 'este oprit acum.',
+    aiTooFast: 'Prea multe mesaje la rând — așteaptă puțin și încearcă din nou.',
+    aiNoReply: 'Ne pare rău, nu am putut răspunde.',
+    alreadyAdmin: 'Ești deja conectat ca admin. Apasă „Șterge” pe card.',
+    wrongPassword: 'Parolă greșită',
+    noPending: 'Nu există înregistrări în așteptare.',
+    approve: '✓ Aprobă',
+    reject: '✕ Respinge',
+    rejectConfirm: 'Respingi această înregistrare? Nu va apărea pe site.',
+    deleteConfirm: 'Ștergi această înregistrare?',
+    reportConfirm: 'Raportezi această înregistrare ca fiind necorespunzătoare?',
+    spamLike: 'Pare a fi spam — încearcă să scrii normal',
+    tooManyPublish: 'Prea multe publicări la rând — încearcă mai târziu.',
+    sendFailed: 'Nu am putut trimite, încearcă din nou.',
+    deleteBtn: '🗑 Șterge',
+    theme: 'Temă de culoare',
+    themeNormal: 'Normală',
+    themeBlackRed: 'Negru-roșu',
+    themeRedGreen: 'Roșu-verde',
+    themeYellowBlue: 'Galben-albastru',
+    passwordPh: 'Introdu parola',
+    pendingTitle: 'Înregistrări în așteptare'
+  },
+  en: {
+    title: 'Class Board — test topics',
+    h1_html: 'Class <span>Board</span>',
+    subtitle: 'Past test topics — to prepare for similar ones later',
+    share: '🔗 Share site',
+    friends: '👥 Friends',
+    aiKey: '🔑 AI key',
+    admin: '🔒 Admin',
+    pending: '📋 Pending',
+    search: 'Search by topic, subject, class...',
+    allClasses: 'All classes',
+    allSubjects: 'All subjects',
+    empty: 'Nothing yet. Tap “+” to add the first entry.',
+    loading: 'Loading...',
+    addEntry: 'Add entry',
+    cls: 'Class',
+    subject: 'Subject',
+    topic: 'Test topic',
+    topicPh: 'e.g. Pushkin',
+    photo: 'Photo of your notes (not the test itself)',
+    photoHint: 'Entries go to admin for review and appear after approval.',
+    cancel: 'Cancel',
+    publish: 'Submit for review',
+    close: 'Close',
+    tutorPh: 'Ask something about the topic...',
+    askAi: 'Tap to ask School.Aii →',
+    openTopic: 'Tap to open topic',
+    settings: 'Settings',
+    lang: 'Site language',
+    settingsHint: 'School.Aii will reply in the selected language.',
+    cloudOk: '☁️ Cloud connected — everyone can see entries',
+    cloudOff: '📱 Only on this device. Set up Firebase so everyone can see.',
+    friendsTitle: 'Friends',
+    tabList: 'List',
+    tabAdd: 'Add',
+    tabProfile: 'Profile',
+    friendCode: 'Friend code',
+    addFriend: 'Add',
+    yourNick: 'Your nickname',
+    save: 'Save',
+    msgPh: 'Message...',
+    adminLogin: 'Admin login',
+    password: 'Password',
+    login: 'Log in',
+    aiKeyTitle: 'School.Aii key (OpenAI)',
+    aiKeyHint: 'You can paste your key from platform.openai.com/api-keys. It stays only in this browser.',
+    langName: 'English',
+    classWord: 'grade',
+    topicLabel: 'Topic',
+    entriesCount: '📌 Entries added',
+    removeFriendConfirm: 'Remove from friends?',
+    greet1: 'Wishing you good health from the admin 💚',
+    greet2: 'Thanks for visiting the site — have a great day!',
+    greet3: 'The admin wishes you luck with your studies 🍀',
+    greet4: 'Come back often — the site grows with you!',
+    greet5: 'Good mood from this site\'s admin 🙌',
+    greet6: 'May your prep go smoothly — the admin believes in you!',
+    tutorGreet: 'Hi! I\'m School.Aii — I\'ll help you with the topic "{topic}" in "{subject}". Ask for an explanation, a similar practice example, or any question about the topic.',
+    aiOff: 'is currently off.',
+    aiTooFast: 'Too many messages in a row — wait a bit and try again.',
+    aiNoReply: 'Sorry, couldn\'t get a reply.',
+    alreadyAdmin: 'You are already logged in as admin. Tap "Delete" on a card.',
+    wrongPassword: 'Wrong password',
+    noPending: 'No entries pending review.',
+    approve: '✓ Approve',
+    reject: '✕ Reject',
+    rejectConfirm: 'Reject this entry? It will not appear on the site.',
+    deleteConfirm: 'Delete this entry?',
+    reportConfirm: 'Report this entry as inappropriate?',
+    spamLike: 'Looks like spam — try writing it normally',
+    tooManyPublish: 'Too many publishes in a row — try again later.',
+    sendFailed: 'Could not send, please try again.',
+    deleteBtn: '🗑 Delete',
+    theme: 'Color theme',
+    themeNormal: 'Normal',
+    themeBlackRed: 'Black & red',
+    themeRedGreen: 'Red & green',
+    themeYellowBlue: 'Yellow & blue',
+    passwordPh: 'Enter password',
+    pendingTitle: 'Entries pending review'
+  }
+};
+
+let currentLang = 'ru';
+try { currentLang = localStorage.getItem('classboard_lang') || 'ru'; } catch(e) {}
+if (!I18N[currentLang]) currentLang = 'ru';
+
+function t(key){
+  return (I18N[currentLang] && I18N[currentLang][key]) || (I18N.ru[key] || key);
+}
+
+function setLanguage(lang){
+  if (!I18N[lang]) return;
+  currentLang = lang;
+  try { localStorage.setItem('classboard_lang', lang); } catch(e) {}
+  applyTranslations();
+}
+
+const VALID_THEMES = ['normal', 'blackred', 'redgreen', 'yellowblue'];
+let currentTheme = 'normal';
+try { currentTheme = localStorage.getItem('classboard_theme') || 'normal'; } catch(e) {}
+if (!VALID_THEMES.includes(currentTheme)) currentTheme = 'normal';
+
+function applyTheme(){
+  document.body.classList.remove('theme-blackred', 'theme-redgreen', 'theme-yellowblue');
+  if (currentTheme !== 'normal') document.body.classList.add('theme-' + currentTheme);
+  const sel = document.getElementById('themeSelect');
+  if (sel) sel.value = currentTheme;
+}
+
+function setTheme(theme){
+  if (!VALID_THEMES.includes(theme)) return;
+  currentTheme = theme;
+  try { localStorage.setItem('classboard_theme', theme); } catch(e) {}
+  applyTheme();
+}
+
+function applyTranslations(){
+  document.documentElement.lang = currentLang === 'ro' ? 'ro' : currentLang;
+  document.title = t('title');
+  const h1 = document.querySelector('header h1');
+  if (h1) h1.innerHTML = t('h1_html');
+  const sub = document.querySelector('p.subtitle');
+  if (sub) sub.textContent = t('subtitle');
+
+  const mapBtn = [
+    ['.share-btn:not(.admin-btn):not(.friends-btn)', 'share'],
+  ];
+  // explicit ids/classes via query
+  const shareBtns = document.querySelectorAll('header .share-btn');
+  shareBtns.forEach(btn => {
+    const on = btn.getAttribute('onclick') || '';
+    if (on.includes('shareSite')) btn.textContent = t('share');
+    else if (on.includes('openFriendsPanel')) btn.textContent = t('friends');
+    else if (on.includes('openAiSettings')) btn.textContent = t('aiKey');
+    else if (on.includes('openAdminLogin')) btn.textContent = t('admin');
+    else if (on.includes('openPendingPanel')) {
+      const count = document.getElementById('pendingCount');
+      const n = count ? count.textContent : '0';
+      btn.innerHTML = t('pending') + ' (<span id="pendingCount">' + n + '</span>)';
+    }
+  });
+
+  const search = document.getElementById('searchInput');
+  if (search) search.placeholder = t('search');
+
+  const fc = document.getElementById('filterClass');
+  const fs = document.getElementById('filterSubject');
+  if (fc && fc.options[0]) fc.options[0].textContent = t('allClasses');
+  if (fs && fs.options[0]) fs.options[0].textContent = t('allSubjects');
+
+  const set = (id, key, prop='textContent') => {
+    const el = document.getElementById(id);
+    if (el) el[prop] = t(key);
+  };
+  set('settingsTitle', 'settings');
+  set('labelLanguage', 'lang');
+  set('settingsHint', 'settingsHint');
+  set('settingsClose', 'close');
+  set('tutorInput', 'tutorPh', 'placeholder');
+  set('dmInput', 'msgPh', 'placeholder');
+  set('adminLoginTitle', 'adminLogin');
+  set('passwordLabel', 'password');
+  set('adminPassword', 'passwordPh', 'placeholder');
+  set('adminCancelBtn', 'cancel');
+  set('adminLoginBtn', 'login');
+  set('pendingTitle', 'pendingTitle');
+  set('pendingCloseBtn', 'close');
+  set('labelTheme', 'theme');
+  set('themeOptNormal', 'themeNormal');
+  set('themeOptBlackRed', 'themeBlackRed');
+  set('themeOptRedGreen', 'themeRedGreen');
+  set('themeOptYellowBlue', 'themeYellowBlue');
+
+  // publish modal labels - structure dependent
+  const overlay = document.getElementById('overlay');
+  if (overlay) {
+    const h2 = overlay.querySelector('h2');
+    if (h2) h2.textContent = t('addEntry');
+    const labels = overlay.querySelectorAll('label');
+    if (labels[0]) labels[0].textContent = t('cls');
+    if (labels[1]) labels[1].textContent = t('subject');
+    if (labels[2]) labels[2].textContent = t('topic');
+    if (labels[3]) labels[3].textContent = t('photo');
+    const topic = document.getElementById('inputTopic');
+    if (topic) topic.placeholder = t('topicPh');
+    const hint = overlay.querySelector('.photo-hint');
+    if (hint) hint.textContent = t('photoHint');
+    const cancel = overlay.querySelector('.btn-cancel');
+    const pub = overlay.querySelector('.btn-publish');
+    if (cancel) cancel.textContent = t('cancel');
+    if (pub) pub.textContent = t('publish');
+  }
+
+  // friends
+  const fo = document.getElementById('friendsOverlay');
+  if (fo) {
+    const h2 = fo.querySelector('h2');
+    if (h2) h2.textContent = t('friendsTitle');
+    const tabs = fo.querySelectorAll('.social-tabs button');
+    if (tabs[0]) tabs[0].textContent = t('tabList');
+    if (tabs[1]) tabs[1].textContent = t('tabAdd');
+    if (tabs[2]) tabs[2].textContent = t('tabProfile');
+  }
+  set('friendCodeInput', 'friendCode'); // wrong - it's label
+  const langSel = document.getElementById('langSelect');
+  if (langSel) langSel.value = currentLang;
+
+  // storage banner refresh
+  if (typeof updateStorageBanner === 'function') updateStorageBanner();
+  if (typeof renderGrid === 'function') renderGrid();
+  if (typeof showAdminGreeting === 'function') showAdminGreeting();
+}
+
+function openSettings(){
+  const sel = document.getElementById('langSelect');
+  if (sel) sel.value = currentLang;
+  applyTranslations();
+  document.getElementById('settingsOverlay').classList.add('show');
+}
+function closeSettings(){
+  document.getElementById('settingsOverlay').classList.remove('show');
+}
+
+
+// Встроенный ключ (лучше потом убрать и держать только в Cloudflare Worker)
+const OPENAI_API_KEY_DEFAULT = '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';
+const OPENAI_MODEL = 'gpt-4o-mini';
+// Если задан Worker URL — запросы идут туда, ключа в браузере не видно
+const GEMINI_PROXY_URL = ''; // например: 'https://school-ai.твой-ник.workers.dev'
+
+function getOpenAiKey(){
+  try{
+    const local = (localStorage.getItem('classboard_openai_key') || '').trim();
+    if(local.length > 10) return local;
+  }catch(e){}
+  return (OPENAI_API_KEY_DEFAULT || '').trim();
+}
+
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBSRdDMI-H9qMbUJWn6wdMMb1ZqEayIYNU",
+  authDomain: "dashboard-c52d3.firebaseapp.com",
+  databaseURL: "https://dashboard-c52d3-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "dashboard-c52d3",
+  storageBucket: "dashboard-c52d3.firebasestorage.app",
+  messagingSenderId: "936285582550",
+  appId: "1:936285582550:web:f10cadf86d5b8ca4b08577"
+};
+
+function isAiAvailable() {
+  // proxy или любой ключ (свой / встроенный)
+  if (GEMINI_PROXY_URL && GEMINI_PROXY_URL.trim().length > 10) return true;
+  return getOpenAiKey().length > 10;
+}
+function isFirebaseConfigured() {
+  return FIREBASE_CONFIG.databaseURL && FIREBASE_CONFIG.databaseURL.length > 10 && FIREBASE_CONFIG.apiKey;
+}
+
+let db = null;
+let firebaseReady = false;
+
+function initFirebase() {
+  if (!isFirebaseConfigured()) return false;
+  try {
+    if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    db = firebase.database();
+    firebaseReady = true;
+    return true;
+  } catch (e) {
+    console.error('Firebase init error', e);
+    return false;
+  }
+}
+
+const storage = {
+  async get(key) {
+    if (firebaseReady && db) {
+      try {
+        const snap = await db.ref(key).once('value');
+        const val = snap.val();
+        if (val != null) return typeof val === 'string' ? val : JSON.stringify(val);
+      } catch (e) { console.error(e); }
+    }
+    try { return localStorage.getItem('classboard_' + key); } catch (e) { return null; }
+  },
+  async set(key, value) {
+    let ok = false;
+    if (firebaseReady && db) {
+      try { await db.ref(key).set(JSON.parse(value)); ok = true; }
+      catch (e) { console.error('Firebase set error', e); }
+    }
+    try { localStorage.setItem('classboard_' + key, value); ok = true; } catch (e) {}
+    return ok;
+  },
+  listen(key, callback) {
+    if (firebaseReady && db) {
+      db.ref(key).on('value', (snap) => {
+        const val = snap.val();
+        callback(val != null ? (typeof val === 'string' ? val : JSON.stringify(val)) : '[]');
+      });
+      return true;
+    }
+    return false;
+  }
+};
+
+let entries = [];
+
+// ==== Ограничение спама (мягкое) ====
+const RateLimit = {
+  limits: {
+    publish: { max: 5, windowMs: 10 * 60 * 1000 },
+    like:    { max: 40, windowMs: 60 * 1000 },
+    report:  { max: 20, windowMs: 60 * 1000 },
+    tutor:   { max: 30, windowMs: 60 * 1000 }
+  },
+  key(action){ return 'ratelimit_' + action; },
+  check(action){
+    const cfg = this.limits[action];
+    if(!cfg) return true;
+    const now = Date.now();
+    let timestamps = [];
+    try{ timestamps = JSON.parse(localStorage.getItem(this.key(action)) || '[]'); }catch(e){}
+    timestamps = timestamps.filter(t => now - t < cfg.windowMs);
+    if(timestamps.length >= cfg.max) return false;
+    timestamps.push(now);
+    try{ localStorage.setItem(this.key(action), JSON.stringify(timestamps)); }catch(e){}
+    return true;
+  }
+};
+
+function updateStorageBanner() {
+  const el = document.getElementById('storageBanner');
+  if (!el) return;
+  if (firebaseReady) {
+    el.style.display = 'block';
+    el.className = 'storage-banner ok';
+    el.textContent = t('cloudOk');
+  } else {
+    el.style.display = 'block';
+    el.className = 'storage-banner';
+    el.textContent = t('cloudOff');
+  }
+}
+
+async function loadEntries(){
+  try{
+    const raw = await storage.get('entries');
+    entries = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(entries)) entries = [];
+  }catch(e){ entries = []; }
+  renderFilters();
+  renderGrid();
+  updateCounter();
+}
+
+function updateCounter(){
+  const el = document.getElementById('counter');
+  if(!el) return;
+  el.textContent = entries.length > 0 ? `${t('entriesCount')}: ${entries.length}` : '';
+}
+
+
+// ==== ДРУЗЬЯ И ПЕРЕПИСКА ====
+let me = null;           // { id, nick, code }
+let friends = [];        // [{ id, nick, code }]
+let allUsers = [];       // registry
+let dmPeer = null;       // friend object
+let dmPollTimer = null;
+
+function randomCode(){
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let s = '';
+  for(let i=0;i<6;i++) s += chars[Math.floor(Math.random()*chars.length)];
+  return s;
+}
+function randomId(){ return 'u_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+
+async function loadSocial(){
+  try{
+    const rawUsers = await storage.get('social_users');
+    allUsers = rawUsers ? JSON.parse(rawUsers) : [];
+    if(!Array.isArray(allUsers)) allUsers = [];
+  }catch(e){ allUsers = []; }
+
+  // local identity
+  try{
+    me = JSON.parse(localStorage.getItem('classboard_me') || 'null');
+  }catch(e){ me = null; }
+
+  if(!me || !me.id){
+    me = { id: randomId(), nick: 'Ученик', code: randomCode() };
+    localStorage.setItem('classboard_me', JSON.stringify(me));
+  }
+
+  // register / update me in shared users list
+  const idx = allUsers.findIndex(u => u.id === me.id);
+  if(idx >= 0) allUsers[idx] = { id: me.id, nick: me.nick, code: me.code };
+  else allUsers.push({ id: me.id, nick: me.nick, code: me.code });
+  try{ await storage.set('social_users', JSON.stringify(allUsers)); }catch(e){}
+
+  try{
+    const rawF = localStorage.getItem('classboard_friends_' + me.id);
+    friends = rawF ? JSON.parse(rawF) : [];
+    if(!Array.isArray(friends)) friends = [];
+  }catch(e){ friends = []; }
+}
+
+function saveFriendsLocal(){
+  try{ localStorage.setItem('classboard_friends_' + me.id, JSON.stringify(friends)); }catch(e){}
+}
+
+function openFriendsPanel(){
+  loadSocial().then(() => {
+    renderMyCode();
+    renderFriendList();
+    document.getElementById('myNickInput').value = me.nick || '';
+    showSocialTab('friends');
+    document.getElementById('friendsOverlay').classList.add('show');
+  });
+}
+function closeFriendsPanel(){
+  document.getElementById('friendsOverlay').classList.remove('show');
+}
+
+function renderMyCode(){
+  const box = document.getElementById('myCodeBox');
+  if(!me) return;
+  const syncHint = firebaseReady
+    ? 'Облако включено — друзья и чаты синхронизируются'
+    : 'Без Firebase чат работает только на одном устройстве. Для переписки между телефонами настрой Firebase.';
+  box.innerHTML = `Ты: <b>${escapeHtml(me.nick)}</b><br>Твой код: <b>${escapeHtml(me.code)}</b><br><span style="font-size:.75rem">Скажи код другу, чтобы добавил тебя</span><br><span style="font-size:.72rem;opacity:.85">${syncHint}</span>`;
+}
+
+function showSocialTab(name){
+  document.getElementById('socialFriends').style.display = name === 'friends' ? 'block' : 'none';
+  document.getElementById('socialAdd').style.display = name === 'add' ? 'block' : 'none';
+  document.getElementById('socialProfile').style.display = name === 'profile' ? 'block' : 'none';
+  document.getElementById('tabFriends').classList.toggle('active', name === 'friends');
+  document.getElementById('tabAdd').classList.toggle('active', name === 'add');
+  document.getElementById('tabProfile').classList.toggle('active', name === 'profile');
+  if(name === 'friends') renderFriendList();
+}
+
+function renderFriendList(){
+  const list = document.getElementById('friendList');
+  if(!friends.length){
+    list.innerHTML = '<p style="color:var(--chalk-dim);font-size:.85rem;text-align:center;padding:16px 0;">Пока нет друзей. Добавь по коду.</p>';
+    return;
+  }
+  list.innerHTML = friends.map(f => `
+    <div class="friend-item">
+      <span>👤 ${escapeHtml(f.nick)} <small style="color:var(--chalk-dim)">(${escapeHtml(f.code)})</small></span>
+      <div style="display:flex;gap:6px;">
+        <button type="button" onclick="openDm('${f.id}')">Чат</button>
+        <button type="button" style="background:#c0453a;color:#fff;" onclick="removeFriend('${f.id}')">✕</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function saveMyNick(){
+  const nick = document.getElementById('myNickInput').value.trim().slice(0, 24);
+  const st = document.getElementById('profileStatus');
+  if(!nick){ st.textContent = 'Введи ник'; return; }
+  me.nick = nick;
+  localStorage.setItem('classboard_me', JSON.stringify(me));
+  await loadSocial();
+  renderMyCode();
+  st.textContent = 'Сохранено!';
+}
+
+async function addFriendByCode(){
+  const st = document.getElementById('friendAddStatus');
+  const code = (document.getElementById('friendCodeInput').value || '').trim().toUpperCase();
+  if(code.length < 4){ st.textContent = 'Введи код друга'; return; }
+  if(code === me.code){ st.textContent = 'Это твой собственный код'; return; }
+
+  await loadSocial();
+  const user = allUsers.find(u => (u.code || '').toUpperCase() === code);
+  if(!user){
+    st.textContent = 'Код не найден. Друг должен хотя бы раз открыть «Друзья» на сайте (по той же ссылке / с Firebase).';
+    return;
+  }
+  if(friends.some(f => f.id === user.id)){
+    st.textContent = 'Уже в друзьях';
+    return;
+  }
+  friends.push({ id: user.id, nick: user.nick, code: user.code });
+  saveFriendsLocal();
+  // mutual on this device registry side — friend adds you separately with your code
+  st.textContent = 'Добавлен: ' + user.nick;
+  document.getElementById('friendCodeInput').value = '';
+  renderFriendList();
+  showSocialTab('friends');
+}
+
+function removeFriend(id){
+  if(!confirm(t('removeFriendConfirm'))) return;
+  friends = friends.filter(f => f.id !== id);
+  saveFriendsLocal();
+  renderFriendList();
+}
+
+function chatKey(a, b){
+  return [a, b].sort().join('_');
+}
+
+async function openDm(friendId){
+  await loadSocial();
+  dmPeer = friends.find(f => f.id === friendId) || allUsers.find(u => u.id === friendId);
+  if(!dmPeer){ alert('Друг не найден'); return; }
+  document.getElementById('dmTitle').textContent = 'Чат с ' + (dmPeer.nick || 'другом');
+  document.getElementById('friendsOverlay').classList.remove('show');
+  document.getElementById('dmOverlay').classList.add('show');
+  await renderDm();
+  if(dmPollTimer) clearInterval(dmPollTimer);
+  dmPollTimer = setInterval(renderDm, 3000);
+}
+
+function closeDm(){
+  document.getElementById('dmOverlay').classList.remove('show');
+  dmPeer = null;
+  if(dmPollTimer){ clearInterval(dmPollTimer); dmPollTimer = null; }
+  openFriendsPanel();
+}
+
+async function loadMessages(pairKey){
+  try{
+    const raw = await storage.get('dm_' + pairKey);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  }catch(e){ return []; }
+}
+
+async function renderDm(){
+  if(!dmPeer || !me) return;
+  const key = chatKey(me.id, dmPeer.id);
+  const msgs = await loadMessages(key);
+  const box = document.getElementById('dmChat');
+  if(!msgs.length){
+    box.innerHTML = '<p style="color:var(--chalk-dim);font-size:.85rem;text-align:center;">Напиши первое сообщение</p>';
+    return;
+  }
+  box.innerHTML = msgs.map(m => {
+    const mine = m.from === me.id;
+    return `<div class="dm-msg ${mine ? 'me' : 'them'}">${escapeHtml(m.text)}</div>`;
+  }).join('');
+  box.scrollTop = box.scrollHeight;
+}
+
+async function sendDm(){
+  const input = document.getElementById('dmInput');
+  const text = (input.value || '').trim().slice(0, 500);
+  if(!text || !dmPeer || !me) return;
+  const key = chatKey(me.id, dmPeer.id);
+  const msgs = await loadMessages(key);
+  msgs.push({ id: Date.now(), from: me.id, to: dmPeer.id, text, ts: Date.now() });
+  // keep last 200
+  const trimmed = msgs.slice(-200);
+  await storage.set('dm_' + key, JSON.stringify(trimmed));
+  input.value = '';
+  await renderDm();
+}
+
+
+function showAdminGreeting(){
+  const greetings = [
+    t('greet1'), t('greet2'), t('greet3'), t('greet4'), t('greet5'), t('greet6')
+  ];
+  const el = document.getElementById('adminGreeting');
+  if(el) el.textContent = greetings[Math.floor(Math.random() * greetings.length)];
+}
+
+function shareSite(){
+  const url = window.location.href;
+  if(navigator.share){
+    navigator.share({ title: 'Классная доска', text: 'Темы прошедших контрольных для подготовки', url });
+  } else {
+    navigator.clipboard.writeText(url).then(() => {
+      alert('Ссылка скопирована! Кидай в чат класса 🚀');
+    }).catch(() => { prompt('Скопируй ссылку вручную:', url); });
+  }
+}
+
+let currentTutorEntry = null;
+let tutorHistory = [];
+
+function openTutorById(id){
+  const entry = entries.find(e => e.id === id);
+  if(entry) openTutor(entry);
+}
+
+function openTutor(entry){
+  currentTutorEntry = entry;
+  tutorHistory = [];
+  document.getElementById('tutorTitle').textContent = `School.Aii · ${entry.subject} — ${entry.topic}`;
+  document.getElementById('tutorChat').innerHTML = '';
+  if (isAiAvailable()) {
+    const greetMsg = t('tutorGreet').replace('{topic}', entry.topic).replace('{subject}', entry.subject);
+    addTutorMessage('ai', greetMsg);
+  } else {
+    addTutorMessage('ai', `School.Aii ${t('aiOff')}\n\n${t('topicLabel')}: «${entry.topic}»\n${t('subject')}: ${entry.subject}\n${t('cls')}: ${entry.cls}`);
+  }
+  document.getElementById('tutorOverlay').classList.add('show');
+}
+
+function closeTutor(){
+  document.getElementById('tutorOverlay').classList.remove('show');
+  currentTutorEntry = null;
+}
+
+function addTutorMessage(role, text){
+  const chat = document.getElementById('tutorChat');
+  const div = document.createElement('div');
+  div.className = 'tutor-msg ' + role;
+  div.textContent = text;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+async function callGemini({ system, messages, maxTokens = 800 }) {
+  if (!isAiAvailable()) throw new Error('NO_API_KEY');
+
+  const chatMessages = (messages || []).map(m => ({
+    role: m.role === 'model' ? 'assistant' : (m.role || 'user'),
+    content: m.content || m.parts?.[0]?.text || ''
+  })).filter(m => m.content);
+
+  const fullMessages = system ? [{ role: 'system', content: system }, ...chatMessages] : chatMessages;
+
+  const body = {
+    model: OPENAI_MODEL,
+    messages: fullMessages,
+    max_tokens: maxTokens,
+    temperature: 0.6
+  };
+
+  let url, headers;
+  if (GEMINI_PROXY_URL && GEMINI_PROXY_URL.trim().length > 10) {
+    // Ключ только на Worker — в браузере его нет
+    url = GEMINI_PROXY_URL.trim().replace(/\/$/, '');
+    headers = { 'Content-Type': 'application/json' };
+  } else {
+    const key = getOpenAiKey();
+    if (!key) throw new Error('NO_API_KEY');
+    url = 'https://api.openai.com/v1/chat/completions';
+    headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` };
+  }
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body)
+  });
+  if (!response.ok) {
+    const errText = await response.text();
+    let msg = 'OpenAI error ' + response.status;
+    try {
+      const j = JSON.parse(errText);
+      if (j?.error?.message) msg = j.error.message;
+    } catch (e) {}
+    throw new Error(msg);
+  }
+  const data = await response.json();
+  const text = (data?.choices?.[0]?.message?.content || '').trim();
+  if (!text) throw new Error('Пустой ответ от OpenAI');
+  return text;
+}
+
+async function sendTutorMessage(){
+  const input = document.getElementById('tutorInput');
+  const text = input.value.trim();
+  if(!text || !currentTutorEntry) return;
+
+  if (!isAiAvailable()) {
+    addTutorMessage('user', text);
+    addTutorMessage('ai', `School.Aii ${t('aiOff')}`);
+    input.value = '';
+    return;
+  }
+
+  if(!RateLimit.check('tutor')){
+    addTutorMessage('ai', t('aiTooFast'));
+    return;
+  }
+
+  input.value = '';
+  addTutorMessage('user', text);
+  tutorHistory.push({ role: 'user', content: text });
+  addTutorMessage('ai', '...');
+  const chat = document.getElementById('tutorChat');
+
+  try{
+    const langLine = currentLang === 'en'
+      ? 'Reply in English only.'
+      : currentLang === 'ro'
+        ? 'Răspunde numai în română (limba din Moldova/România).'
+        : 'Отвечай только на русском языке.';
+    const systemPrompt = `Ты School.Aii — школьный помощник по теме «${currentTutorEntry.topic}» (${currentTutorEntry.subject}, ${currentTutorEntry.cls} класс).
+Отвечай коротко и просто. Давай свои примеры для тренировки, не решения реальных контрольных.
+Математику пиши обычным текстом: 3 × 4 = 12, без LaTeX и $...$.
+${langLine}`;
+
+    const reply = await callGemini({ system: systemPrompt, messages: tutorHistory, maxTokens: 280 })
+      || t('aiNoReply');
+
+    chat.lastChild.remove();
+    addTutorMessage('ai', reply);
+    tutorHistory.push({ role: 'assistant', content: reply });
+  }catch(e){
+    chat.lastChild.remove();
+    const raw = String(e?.message || '');
+    let tip = 'Ошибка: ' + (raw.slice(0, 200) || 'неизвестная');
+    if (/Failed to fetch|NetworkError|Load failed|CORS/i.test(raw)) {
+      tip = 'Сеть заблокировала запрос. Открой сайт по ссылке https://... (GitHub Pages), а не как файл с телефона.';
+    }
+    addTutorMessage('ai', tip);
+  }
+}
+
+const ADMIN_PASSWORD = 'Traian2026board';
+let isAdmin = false;
+
+
+function openAiSettings(){
+  const cur = (()=>{ try{ return localStorage.getItem('classboard_openai_key') || ''; }catch(e){ return ''; }})();
+  document.getElementById('aiKeyInput').value = cur;
+  document.getElementById('aiKeyStatus').textContent = cur ? 'Сейчас используется твой ключ из браузера' : (GEMINI_PROXY_URL ? 'Используется защищённый proxy' : (OPENAI_API_KEY_DEFAULT ? 'Сейчас встроенный ключ сайта' : 'Ключ не задан'));
+  document.getElementById('aiKeyOverlay').classList.add('show');
+}
+function closeAiSettings(){
+  document.getElementById('aiKeyOverlay').classList.remove('show');
+}
+function saveAiKey(){
+  const v = (document.getElementById('aiKeyInput').value || '').trim();
+  const st = document.getElementById('aiKeyStatus');
+  if(v.length < 10){ st.textContent = 'Слишком короткий ключ'; return; }
+  try{ localStorage.setItem('classboard_openai_key', v); }catch(e){}
+  st.textContent = 'Сохранено в этом браузере';
+  setTimeout(closeAiSettings, 800);
+}
+function clearAiKey(){
+  try{ localStorage.removeItem('classboard_openai_key'); }catch(e){}
+  document.getElementById('aiKeyInput').value = '';
+  document.getElementById('aiKeyStatus').textContent = 'Свой ключ удалён';
+}
+
+function openAdminLogin(){
+  if(isAdmin){
+    alert(t('alreadyAdmin'));
+    return;
+  }
+  document.getElementById('adminOverlay').classList.add('show');
+}
+function closeAdminLogin(){
+  document.getElementById('adminOverlay').classList.remove('show');
+  document.getElementById('adminPassword').value = '';
+  document.getElementById('adminStatus').textContent = '';
+}
+function checkAdminPassword(){
+  const val = document.getElementById('adminPassword').value;
+  if(val === ADMIN_PASSWORD){
+    isAdmin = true;
+    closeAdminLogin();
+    renderGrid();
+    document.getElementById('pendingBtn').style.display = 'inline-block';
+    refreshPendingCount();
+    alert('Вход выполнен! Теперь на карточках есть кнопка удаления, и доступна панель "На проверке".');
+  } else {
+    document.getElementById('adminStatus').textContent = t('wrongPassword');
+  }
+}
+
+async function refreshPendingCount(){
+  if(!isAdmin) return;
+  try{
+    const raw = await storage.get('pending');
+    const pending = raw ? JSON.parse(raw) : [];
+    document.getElementById('pendingCount').textContent = pending.length;
+  }catch(e){}
+}
+
+async function openPendingPanel(){
+  if(!isAdmin) return;
+  const listEl = document.getElementById('pendingList');
+  listEl.innerHTML = '<p style="color:var(--chalk-dim); font-size:.85rem;">Загрузка...</p>';
+  document.getElementById('pendingOverlay').classList.add('show');
+
+  let pending = [];
+  try{ const raw = await storage.get('pending'); if(raw) pending = JSON.parse(raw); }catch(e){}
+
+  if(pending.length === 0){
+    listEl.innerHTML = `<p style="color:var(--chalk-dim); font-size:.85rem; text-align:center;">${t('noPending')}</p>`;
+    return;
+  }
+
+  listEl.innerHTML = pending.map(e => `
+    <div class="pending-item">
+      ${e.photo ? `<img src="${e.photo}" alt="конспект">` : ''}
+      <h4>${escapeHtml(e.cls)} ${t('classWord')} — ${escapeHtml(e.subject)}</h4>
+      <p>${t('topicLabel')}: ${escapeHtml(e.topic)}</p>
+      <div class="pending-actions">
+        <button class="approve-btn" onclick="approvePending(${e.id})">${t('approve')}</button>
+        <button class="reject-btn" onclick="rejectPending(${e.id})">${t('reject')}</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function closePendingPanel(){
+  document.getElementById('pendingOverlay').classList.remove('show');
+}
+
+async function approvePending(id){
+  let pending = [];
+  try{ const raw = await storage.get('pending'); if(raw) pending = JSON.parse(raw); }catch(e){}
+  const entry = pending.find(e => e.id === id);
+  if(!entry) return;
+
+  pending = pending.filter(e => e.id !== id);
+  await storage.set('pending', JSON.stringify(pending));
+
+  entries.unshift(entry);
+  await storage.set('entries', JSON.stringify(entries));
+
+  renderFilters();
+  renderGrid();
+  updateCounter();
+  refreshPendingCount();
+  openPendingPanel();
+}
+
+async function rejectPending(id){
+  if(!confirm(t('rejectConfirm'))) return;
+  let pending = [];
+  try{ const raw = await storage.get('pending'); if(raw) pending = JSON.parse(raw); }catch(e){}
+  pending = pending.filter(e => e.id !== id);
+  await storage.set('pending', JSON.stringify(pending));
+  refreshPendingCount();
+  openPendingPanel();
+}
+
+async function deleteEntry(id, event){
+  event.stopPropagation();
+  if(!confirm(t('deleteConfirm'))) return;
+  entries = entries.filter(e => e.id !== id);
+  try{ await storage.set('entries', JSON.stringify(entries)); }catch(e){}
+  renderFilters();
+  renderGrid();
+  updateCounter();
+}
+
+let likeInProgress = new Set();
+
+function getMyLikes(){
+  try{ return new Set(JSON.parse(localStorage.getItem('classboard_my_likes') || '[]')); }
+  catch(e){ return new Set(); }
+}
+function saveMyLikes(set){
+  try{ localStorage.setItem('classboard_my_likes', JSON.stringify([...set])); }catch(e){}
+}
+
+const REPORT_THRESHOLD = 10; // после стольки жалоб запись удаляется автоматически
+let reportInProgress = new Set();
+
+function getMyReports(){
+  try{ return new Set(JSON.parse(localStorage.getItem('classboard_my_reports') || '[]')); }
+  catch(e){ return new Set(); }
+}
+function saveMyReports(set){
+  try{ localStorage.setItem('classboard_my_reports', JSON.stringify([...set])); }catch(e){}
+}
+
+async function reportEntry(id, event){
+  event.stopPropagation();
+  if(reportInProgress.has(id)) return;
+
+  const myReports = getMyReports();
+  if(myReports.has(id)){
+    alert('Ты уже пожаловался на эту запись.');
+    return;
+  }
+  if(!confirm(t('reportConfirm'))) return;
+
+  reportInProgress.add(id);
+  try{
+    let fresh = entries;
+    try{ const raw = await storage.get('entries'); if(raw) fresh = JSON.parse(raw); }catch(e){}
+    const entry = fresh.find(e => e.id === id);
+    if(!entry){ reportInProgress.delete(id); return; }
+
+    entry.reports = Number(entry.reports || 0) + 1;
+    myReports.add(id);
+    saveMyReports(myReports);
+
+    if(entry.reports >= REPORT_THRESHOLD){
+      // Достигнут порог жалоб — запись удаляется автоматически
+      fresh = fresh.filter(e => e.id !== id);
+      entries = fresh;
+      await storage.set('entries', JSON.stringify(entries));
+      renderFilters();
+      renderGrid();
+      updateCounter();
+      alert('Запись набрала много жалоб и была удалена.');
+    } else {
+      entries = fresh;
+      renderGrid();
+      await storage.set('entries', JSON.stringify(entries));
+    }
+  }catch(e){
+    await loadEntries();
+  }finally{
+    reportInProgress.delete(id);
+  }
+}
+
+async function likeEntry(id, event){
+  event.stopPropagation();
+  if(likeInProgress.has(id)) return;
+  likeInProgress.add(id);
+  try{
+    let fresh = entries;
+    try{ const raw = await storage.get('entries'); if(raw) fresh = JSON.parse(raw); }catch(e){}
+    const entry = fresh.find(e => e.id === id);
+    if(!entry){ likeInProgress.delete(id); return; }
+
+    const myLikes = getMyLikes();
+    if(myLikes.has(id)){
+      entry.likes = Math.max(0, Number(entry.likes || 0) - 1);
+      myLikes.delete(id);
+    } else {
+      entry.likes = Number(entry.likes || 0) + 1;
+      myLikes.add(id);
+    }
+    saveMyLikes(myLikes);
+    entries = fresh;
+    renderGrid();
+    await storage.set('entries', JSON.stringify(entries));
+  }catch(e){
+    await loadEntries();
+  }finally{
+    likeInProgress.delete(id);
+  }
+}
+
+function openModal(){ document.getElementById('overlay').classList.add('show'); }
+function closeModal(){
+  document.getElementById('overlay').classList.remove('show');
+  document.getElementById('inputClass').value = '';
+  document.getElementById('inputSubject').value = '';
+  document.getElementById('inputTopic').value = '';
+  document.getElementById('status').textContent = '';
+}
+
+function checkContent(text){
+  const lower = text.toLowerCase();
+  const banned = ['бляд','сука','хуй','пизд','ебат','ебан','мудак','гандон','пидор'];
+  for(const word of banned){
+    if(lower.includes(word)) return { ok:false, reason:'В тексте похоже на нецензурную лексику — перепиши, пожалуйста' };
+  }
+  if(/(.)\1{5,}/.test(lower)) return { ok:false, reason:t('spamLike') };
+  return { ok:true };
+}
+
+async function getAiHelp(subject, topic){
+  const langLine = currentLang === 'en'
+    ? 'Write the JSON values in English only.'
+    : currentLang === 'ro'
+      ? 'Scrie valorile din JSON doar în română (Moldova/România).'
+      : 'Пиши значения в JSON только на русском языке.';
+  const prompt = `Test topic: subject "${subject}", topic "${topic}".
+Write ONLY valid JSON, no markdown, no \`\`\`:
+{"description": "1-2 short sentences, simple words", "difficulty": "easy/medium/hard (translated to the target language)", "prepTips": ["tip 1", "tip 2", "tip 3"]}
+Do NOT give ready answers to actual test questions, only general prep directions.
+${langLine}`;
+  const text = await callGemini({ messages: [{ role:'user', content: prompt }], maxTokens: 600 });
+  const clean = text.replace(/```json|```/g, '').trim();
+  return JSON.parse(clean);
+}
+
+async function publishEntry(){
+  if(!RateLimit.check('publish')){
+    document.getElementById('status').textContent = t('tooManyPublish');
+    return;
+  }
+  const cls = document.getElementById('inputClass').value.trim();
+  const subject = document.getElementById('inputSubject').value.trim();
+  const topic = document.getElementById('inputTopic').value.trim();
+  const statusEl = document.getElementById('status');
+
+  if(!cls || !subject || !topic){
+    statusEl.textContent = 'Заполни все поля';
+    return;
+  }
+
+  const modCheck = checkContent(topic);
+  if(!modCheck.ok){
+    statusEl.textContent = modCheck.reason;
+    return;
+  }
+
+  let photoData = null;
+  const photoInput = document.getElementById('inputPhoto');
+  if(photoInput.files && photoInput.files[0]){
+    statusEl.textContent = 'Обрабатываю фото...';
+    try{ photoData = await resizeImageToBase64(photoInput.files[0]); }
+    catch(e){ photoData = null; }
+  }
+
+  let aiInfo = null;
+  if (isAiAvailable()) {
+    statusEl.textContent = 'ИИ оформляет запись...';
+    try{ aiInfo = await getAiHelp(subject, topic); }catch(e){ aiInfo = null; }
+  } else {
+    statusEl.textContent = 'Отправляю на проверку...';
+  }
+
+  const newEntry = {
+    id: Date.now(), cls, subject, topic,
+    description: aiInfo?.description || '',
+    difficulty: aiInfo?.difficulty || '',
+    prepTips: aiInfo?.prepTips || [],
+    photo: photoData,
+    likes: 0
+  };
+
+  statusEl.textContent = 'Отправляю на проверку...';
+  try {
+    let pending = [];
+    try{ const raw = await storage.get('pending'); if(raw) pending = JSON.parse(raw); }catch(e){}
+    pending.unshift(newEntry);
+    await storage.set('pending', JSON.stringify(pending));
+    statusEl.textContent = 'Отправлено! Появится на сайте после проверки админом.';
+    setTimeout(closeModal, 1500);
+  } catch (e) {
+    statusEl.textContent = t('sendFailed');
+  }
+}
+
+function resizeImageToBase64(file){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 700;
+        const scale = Math.min(MAX_WIDTH / img.width, 1);
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.7));
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function renderFilters(){
+  const classes = [...new Set(entries.map(e => e.cls))].sort();
+  const subjects = [...new Set(entries.map(e => e.subject))].sort();
+  const fc = document.getElementById('filterClass');
+  const fs = document.getElementById('filterSubject');
+  const curC = fc.value, curS = fs.value;
+  fc.innerHTML = '<option value="">Все классы</option>' + classes.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+  fs.innerHTML = '<option value="">Все предметы</option>' + subjects.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+  fc.value = curC; fs.value = curS;
+}
+
+function renderGrid(){
+  const grid = document.getElementById('grid');
+  const q = document.getElementById('searchInput').value.trim().toLowerCase();
+  const fClass = document.getElementById('filterClass').value;
+  const fSubject = document.getElementById('filterSubject').value;
+
+  const filtered = entries.filter(e => {
+    const matchQ = !q || e.topic.toLowerCase().includes(q) || e.subject.toLowerCase().includes(q) || e.cls.toLowerCase().includes(q);
+    const matchC = !fClass || e.cls === fClass;
+    const matchS = !fSubject || e.subject === fSubject;
+    return matchQ && matchC && matchS;
+  });
+
+  if(filtered.length === 0){
+    grid.innerHTML = '<div class="empty">' + t('empty') + '</div>';
+    return;
+  }
+
+  const myLikes = getMyLikes();
+  grid.innerHTML = filtered.map(e => {
+    const liked = myLikes.has(e.id);
+    return `
+    <div class="card" onclick="openTutorById(${e.id})">
+      ${e.photo ? `<img src="${e.photo}" alt="конспект" style="width:100%; max-height:160px; object-fit:cover; border-radius:8px; margin-bottom:10px;">` : ''}
+      <span class="tag">${escapeHtml(e.cls)} ${t('classWord')}</span>
+      <h3>${escapeHtml(e.subject)}</h3>
+      <p>${t('topicLabel')}: ${escapeHtml(e.topic)}</p>
+      <p class="click-hint">${isAiAvailable() ? t('askAi') : t('openTopic')}</p>
+      <div class="card-actions">
+        <button class="like-btn ${liked ? 'liked' : ''}" onclick="likeEntry(${e.id}, event)">${liked ? '❤️' : '🤍'} ${Number(e.likes) || 0}</button>
+        <button class="report-btn" onclick="reportEntry(${e.id}, event)">🚩 ${Number(e.reports) || 0}</button>
+        ${isAdmin ? `<button class="delete-btn" onclick="deleteEntry(${e.id}, event)">${t('deleteBtn')}</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+document.getElementById('searchInput').addEventListener('input', renderGrid);
+document.getElementById('filterClass').addEventListener('change', renderGrid);
+document.getElementById('filterSubject').addEventListener('change', renderGrid);
+document.getElementById('overlay').addEventListener('click', (e) => { if(e.target.id === 'overlay') closeModal(); });
+
+// Проверка бана при загрузке
+initFirebase();
+updateStorageBanner();
+if (firebaseReady) {
+  storage.listen('entries', (raw) => {
+    try {
+      entries = JSON.parse(raw);
+      if (!Array.isArray(entries)) entries = [];
+      renderFilters();
+      renderGrid();
+      updateCounter();
+    } catch(e) {}
+  });
+} else {
+  loadEntries();
+}
+function fillClassOptions(){
+  const sel = document.getElementById('inputClass');
+  for(let i = 1; i <= 12; i++){
+    const opt = document.createElement('option');
+    opt.value = String(i);
+    opt.textContent = i;
+    sel.appendChild(opt);
+  }
+}
+fillClassOptions();
+
+applyTheme();
+applyTranslations();
+showAdminGreeting();
+loadSocial();
+</script>
+</body>
+</html>
